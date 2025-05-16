@@ -34,6 +34,9 @@ logger.addHandler(file_handler)
 
 CONTACTS_CSV = os.path.join("uploads", "contacts.csv")
 MESSAGE_FILE = os.path.join("message", "send.txt")
+IMAGES_FOLDER = "Images"
+IMAGE_NAME = "sample.png"  # You can change this to the image you want to send
+IMAGE_PATH = os.path.join(IMAGES_FOLDER, IMAGE_NAME)
 
 
 def read_contacts(csv_path):
@@ -63,7 +66,7 @@ def read_message(message_path):
             if not message:
                 logger.warning(f"Message file {message_path} is empty.")
                 return None
-            logger.info(f"Loaded message from {message_path}")
+            logger.info(f"Loaded message from {message_path}: {message}")
             return message
     except FileNotFoundError:
         logger.error(f"Message file not found: {message_path}")
@@ -72,14 +75,24 @@ def read_message(message_path):
     return None
 
 
-def send_whatsapp_message(phone, message):
+def warmup_whatsapp_web(phone):
     try:
-        logger.info(f"Sending message to {phone}...")
-        pywhatkit.sendwhatmsg_instantly(phone, message, wait_time=10, tab_close=True)
-        logger.info(f"Message sent to {phone}")
-        time.sleep(5)  # Wait to avoid spamming
+        logger.info(f"Warming up WhatsApp Web for {phone}...")
+        pywhatkit.sendwhatmsg_instantly(phone, "", wait_time=15, tab_close=False)
+        logger.info("WhatsApp Web loaded and ready.")
+        time.sleep(10)  # Give extra time for WhatsApp Web to fully load
     except Exception as e:
-        logger.error(f"Failed to send message to {phone}: {e}")
+        logger.error(f"Warm-up failed: {e}")
+
+
+def send_whatsapp_image_and_text(phone, image_path, message):
+    try:
+        logger.info(f"Sending image to {phone} with caption...")
+        pywhatkit.sendwhats_image(phone, image_path, caption=message, tab_close=False)
+        logger.info(f"Image and text sent to {phone}")
+        time.sleep(8)  # Wait to avoid spamming and allow WhatsApp to process
+    except Exception as e:
+        logger.error(f"Failed to send image and text to {phone}: {e}")
 
 
 def main():
@@ -91,13 +104,19 @@ def main():
     if not message:
         logger.warning("No message to send.")
         return
+    # Warm up WhatsApp Web for the first contact
+    first_phone = contacts[0]['phone']
+    if first_phone.startswith('+'):
+        warmup_whatsapp_web(first_phone)
+    else:
+        logger.warning(f"Phone number for {contacts[0]['name']} is not in international format: {first_phone}")
+    # Now send image and text to all contacts
     for contact in contacts:
         phone = contact['phone']
-        # Ensure phone number is in correct format (e.g., '+1234567890')
         if not phone.startswith('+'):
             logger.warning(f"Phone number for {contact['name']} is not in international format: {phone}")
             continue
-        send_whatsapp_message(phone, message)
+        send_whatsapp_image_and_text(phone, IMAGE_PATH, message)
 
 if __name__ == "__main__":
     main()
